@@ -19,7 +19,8 @@ public class Git {
             } else {
                 System.out.println("Git Repository Created");
             }
-        } catch (IOException e) {
+            add("example.txt");
+        } catch (IOException | NoSuchAlgorithmException e) {
             System.out.println("File error: " + e.getMessage());
         }
     }
@@ -113,4 +114,22 @@ public class Git {
         return hash;
     }
 
+    public static void add(String filePath) throws IOException, NoSuchAlgorithmException {
+        String hash = createBlob(filePath);
+        File indexFile = new File("git/index");
+        if (!indexFile.exists()) {
+            indexFile.createNewFile();
+        }
+        boolean hasContent = indexFile.length() > 0;
+
+        FileWriter writer = new FileWriter(indexFile,true);
+
+        if (hasContent) {
+            writer.write("\n");
+        }
+
+        writer.write(hash + " " + filePath);
+
+        writer.close();
+    }
 }
