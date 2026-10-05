@@ -11,50 +11,71 @@ import java.nio.file.Path;
 public class Git {
 
     public static void main(String[] args) {
-        try{
-            if(!CreateFolderFile()){
+        try {
+            if (!CreateFolderFile()) {
                 System.out.println("Git Repository Already Exists");
-            }
-            else{
+            } else {
                 System.out.println("Git Repository Created");
             }
-        }
-        catch(IOException e){
+        } catch (IOException e) {
             System.out.println("File error: " + e.getMessage());
         }
     }
 
-    public static boolean CreateFolderFile()throws IOException{ //return false if there is no folder that is created, else return true;
-        int CreatedCount=0;
+    public static boolean CreateFolderFile() throws IOException { // return false if there is no folder that is created,else return true;
+        int CreatedCount = 0;
         File gitFolder = new File("git/");
-        if(!gitFolder.exists()){
+        if (!gitFolder.exists()) {
             gitFolder.mkdir();
             CreatedCount++;
         }
-        File objectFolder =new File(gitFolder,"objects/");
-        if(!objectFolder.exists()){
+        File objectFolder = new File(gitFolder, "objects/");
+        if (!objectFolder.exists()) {
             objectFolder.mkdir();
             CreatedCount++;
         }
-        File indexFile = new File(gitFolder,"index");
-        if(!indexFile.exists()){
+        File indexFile = new File(gitFolder, "index");
+        if (!indexFile.exists()) {
             indexFile.createNewFile();
             CreatedCount++;
         }
-        File HeadFile = new File(gitFolder,"Head");
-        if(!HeadFile.exists()){
+        File HeadFile = new File(gitFolder, "Head");
+        if (!HeadFile.exists()) {
             HeadFile.createNewFile();
             CreatedCount++;
         }
 
-        if(CreatedCount==0){
+        if (CreatedCount == 0) {
             return false;
-        }
-        else{
+        } else {
             return true;
         }
 
     }
+    public static String hashFile(String filePath) throws IOException, NoSuchAlgorithmException {
+        Path path = Path.of(filePath);
+        if (!Files.isRegularFile(path)) {
+            throw new IOException("No such files: " + filePath);
+        }
+        FileReader reader = new FileReader(filePath);
+        StringBuilder toSave = new StringBuilder();
+        int character = reader.read();
+        while (character != -1) {
+            toSave.append((char) character);
+            character = reader.read();
+        }
+        reader.close();
+        MessageDigest digest = MessageDigest.getInstance("SHA-1");
 
+        byte[] hashBytes = digest.digest(toSave.toString().getBytes("UTF-8"));
+        StringBuilder hex = new StringBuilder();
+
+        for (byte bite : hashBytes) {
+            hex.append(String.format("%02x", bite & 0xff));
+        }
+
+        return hex.toString();
+
+    }
 
 }
