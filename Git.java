@@ -11,18 +11,18 @@ public class Git {
 
     public static void main(String[] args) {
         try {
-            if (!CreateFolderFile()) {
+            if (!init()) {
                 System.out.println("Git Repository Already Exists");
             } else {
                 System.out.println("Git Repository Created");
             }
-            add("example.txt");
+            index("example.txt");
         } catch (IOException | NoSuchAlgorithmException e) {
             System.out.println("File error: " + e.getMessage());
         }
     }
 
-    public static boolean CreateFolderFile() throws IOException { // return false if there is no
+    public static boolean init() throws IOException { // return false if there is no
                                                                   // folder that is created,else
                                                                   // return true;
         int CreatedCount = 0;
@@ -111,7 +111,7 @@ public class Git {
         return hash;
     }
 
-    public static void add(String filePath) throws IOException, NoSuchAlgorithmException {
+    public static void index(String filePath) throws IOException, NoSuchAlgorithmException {
         String hash = createBlob(filePath);
         File indexFile = new File("git/index");
         if (!indexFile.exists()) {
