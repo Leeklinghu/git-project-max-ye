@@ -56,21 +56,21 @@ public class Git {
     }
 
     public static String hashFile(String filePath) throws IOException, NoSuchAlgorithmException {
-        Path path = Path.of(filePath);
+        Path path = Path.of(filePath);  
         if (!Files.isRegularFile(path)) {
             throw new IOException("No such files: " + filePath);
         }
         FileReader reader = new FileReader(filePath);
-        StringBuilder toSave = new StringBuilder();
+        StringBuilder fileContent = new StringBuilder();
         int character = reader.read();
         while (character != -1) {
-            toSave.append((char) character);
+            fileContent.append((char) character);
             character = reader.read();
         }
         reader.close();
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
 
-        byte[] hashBytes = digest.digest(toSave.toString().getBytes("UTF-8"));
+        byte[] hashBytes = digest.digest(fileContent.toString().getBytes("UTF-8"));
         StringBuilder hex = new StringBuilder();
 
         for (byte bite : hashBytes) {
