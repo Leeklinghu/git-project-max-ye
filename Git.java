@@ -1,31 +1,33 @@
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 
 public class Git {
 
     public static void main(String[] args) {
+        if (args.length == 0) {
+            System.out.println("Usage: java Git <filePath>");
+            return;
+        }
         try {
-            if (!CreateFolderFile()) {
+            if (!init()) {
                 System.out.println("Git Repository Already Exists");
             } else {
                 System.out.println("Git Repository Created");
             }
-            add("example.txt");
+            index(args[0]);
         } catch (IOException | NoSuchAlgorithmException e) {
             System.out.println("File error: " + e.getMessage());
         }
     }
 
-    public static boolean CreateFolderFile() throws IOException { // return false if there is no
+    public static boolean init() throws IOException { // return false if there is no
                                                                   // folder that is created,else
                                                                   // return true;
         int CreatedCount = 0;
@@ -59,21 +61,21 @@ public class Git {
     }
 
     public static String hashFile(String filePath) throws IOException, NoSuchAlgorithmException {
-        Path path = Path.of(filePath);
+        Path path = Path.of(filePath);  
         if (!Files.isRegularFile(path)) {
             throw new IOException("No such files: " + filePath);
         }
         FileReader reader = new FileReader(filePath);
-        StringBuilder toSave = new StringBuilder();
+        StringBuilder fileContent = new StringBuilder();
         int character = reader.read();
         while (character != -1) {
-            toSave.append((char) character);
+            fileContent.append((char) character);
             character = reader.read();
         }
         reader.close();
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
 
-        byte[] hashBytes = digest.digest(toSave.toString().getBytes("UTF-8"));
+        byte[] hashBytes = digest.digest(fileContent.toString().getBytes("UTF-8"));
         StringBuilder hex = new StringBuilder();
 
         for (byte bite : hashBytes) {
@@ -114,22 +116,36 @@ public class Git {
         return hash;
     }
 
-    public static void add(String filePath) throws IOException, NoSuchAlgorithmException {
-        String hash = createBlob(filePath);
-        File indexFile = new File("git/index");
-        if (!indexFile.exists()) {
-            indexFile.createNewFile();
-        }
-        boolean hasContent = indexFile.length() > 0;
+    public static void index(String filePath) throws IOException, NoSuchAlgorithmException {
+        Path root = Path.of("").toAbsolutePath().normalize();
+        Path file = root.resolve(filePath).normalize();
+		if (!file.startsWith(root) || !Files.isRegularFile(file)) {
+     	   throw new IOException("no" + filePath);
+    	}
+        String relativePath = root.relativize(file).toString()
+                .replace(File.separatorChar, '/');
 
-        FileWriter writer = new FileWriter(indexFile,true);
+        String hash = createBlob(file.toString());
 
-        if (hasContent) {
-            writer.write("\n");
-        }
+        Path index = Path.of("git", "index");
+        Files.createDirectories(index.getParent());
 
-        writer.write(hash + " " + filePath);
+        ArrayList<String> lines = new ArrayList<>();
 
-        writer.close();
-    }
+		if (Files.exists(index)) {
+        	for (String line : Files.readAllLines(index)) {
+                if (line.equals(hash + " " + relativePath)) {
+                    return;
+                }
+            	int space = line.indexOf(' ');
+        		if (space >= 0 && !line.substring(space + 1).equals(relativePath)) {
+                	lines.add(line);
+            	}
+        	}
+ 		}
+
+    	lines.add(hash + " " + relativePath);
+    	Files.writeString(index, String.join("\n", lines));
+	}
+        
 }
