@@ -153,7 +153,7 @@ public class Git {
         Path root = Path.of("").toAbsolutePath().normalize();
         Path file = root.resolve(filePath).normalize();
         if (!file.startsWith(root) || !Files.isRegularFile(file)) {
-            throw new IOException("no" + filePath);
+            throw new IOException("no " + filePath);
         }
         String relativePath = root.relativize(file).toString()
                 .replace(File.separatorChar, '/');
@@ -304,7 +304,7 @@ public class Git {
         return path.substring(0, lastSlash);
     }
 
-    public void commit(String author, String message) throws IOException, NoSuchAlgorithmException {
+    public static String commit(String author, String message) throws IOException, NoSuchAlgorithmException {
         Path headPath = Paths.get("git/HEAD");
         // case 1: first commit
         File temp = new File("git/temp");
@@ -327,5 +327,6 @@ public class Git {
         FileWriter headWriter = new FileWriter("git/HEAD");
         headWriter.write(commitHash);
         headWriter.close();
+        return commitHash;
     }
 }
