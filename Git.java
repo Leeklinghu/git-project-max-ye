@@ -4,9 +4,12 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.time.LocalDateTime;
 
 public class Git {
 
@@ -76,7 +79,7 @@ public class Git {
             indexFile.createNewFile();
             CreatedCount++;
         }
-        File HeadFile = new File(gitFolder, "Head");
+        File HeadFile = new File(gitFolder, "HEAD");
         if (!HeadFile.exists()) {
             HeadFile.createNewFile();
             CreatedCount++;
@@ -287,7 +290,6 @@ public class Git {
             }
 
             workingList.add("tree " + hash + " " + Deepdir);
-
             if (Deepdir.isEmpty()) {
                 return hash;
             }
@@ -300,5 +302,30 @@ public class Git {
             return "";
         }
         return path.substring(0, lastSlash);
+    }
+
+    public void commit(String author, String message) throws IOException, NoSuchAlgorithmException {
+        Path headPath = Paths.get("git/HEAD");
+        // case 1: first commit
+        File temp = new File("git/temp");
+        temp.createNewFile();
+        String rootHash = createTreeFromIndex();
+        FileWriter writer = new FileWriter(temp);
+        if (!Files.exists(headPath) || Files.size(headPath) == 0) {
+            writer.write("tree: " + rootHash + "\nauthor: " + author + "\ndate: " + LocalDateTime.now()
+                    + "\nmessage: " + message);
+        } else {
+            // case 2: previous commits exist
+            writer.write("tree: " + rootHash + "\nparent: " + Files.readString(headPath) + "\nauthor: " + author
+                    + "\ndate: " + LocalDateTime.now() + "\nmessage: " + message);
+        }
+        writer.close();
+        // update head
+        String commitHash = createBlob("git/temp");
+        Path path = Paths.get("git/temp");
+        Files.deleteIfExists(path);
+        FileWriter headWriter = new FileWriter("git/HEAD");
+        headWriter.write(commitHash);
+        headWriter.close();
     }
 }
