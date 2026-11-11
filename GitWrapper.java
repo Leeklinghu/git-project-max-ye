@@ -46,13 +46,11 @@ public class GitWrapper {
         return Git.commit(author, message);
     }
 
-    /**
-     * EXTRA CREDIT: Restores the working directory to the state of a specific commit.
-     * Traces the commit's root tree and recreates all files and directories.
-     *
-     * @param commitHash The SHA-1 hash of the commit to check out.
-     */
-    public static void checkout(String commitHash) {
-        // implement here
+    public static void checkout(String target) throws IOException {
+        Git.checkout(target);
+    }
+
+    public static void createBranch(String name) throws IOException {
+        Git.createBranch(name);
     }
 }

@@ -9,7 +9,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.time.LocalDateTime;
 
 public class Git {
 
@@ -79,9 +78,14 @@ public class Git {
             indexFile.createNewFile();
             CreatedCount++;
         }
+        File headsFolder = new File(gitFolder, "refs/heads/");
+        if (!headsFolder.exists()) {
+            headsFolder.mkdirs();
+            CreatedCount++;
+        }
         File HeadFile = new File(gitFolder, "HEAD");
-        if (!HeadFile.exists()) {
-            HeadFile.createNewFile();
+        if (!HeadFile.exists() || HeadFile.length() == 0) {
+            Files.writeString(HeadFile.toPath(), "ref: refs/heads/main");
             CreatedCount++;
         }
 
@@ -305,28 +309,169 @@ public class Git {
     }
 
     public static String commit(String author, String message) throws IOException, NoSuchAlgorithmException {
-        Path headPath = Paths.get("git/HEAD");
-        // case 1: first commit
-        File temp = new File("git/temp");
-        temp.createNewFile();
-        String rootHash = createTreeFromIndex();
-        FileWriter writer = new FileWriter(temp);
-        if (!Files.exists(headPath) || Files.size(headPath) == 0) {
-            writer.write("tree: " + rootHash + "\nauthor: " + author + "\ndate: " + LocalDateTime.now()
-                    + "\nmessage: " + message);
+        String head = readHead();
+        String branch = branchFromHead(head);
+        String parent;
+        if (branch != null) {
+            parent = readBranch(branch);
         } else {
-            // case 2: previous commits exist
-            writer.write("tree: " + rootHash + "\nparent: " + Files.readString(headPath) + "\nauthor: " + author
-                    + "\ndate: " + LocalDateTime.now() + "\nmessage: " + message);
+            parent = head.isEmpty() ? null : head;
         }
+
+        String rootHash = createTreeFromIndex();
+        File temp = new File("git/temp");
+        FileWriter writer = new FileWriter(temp);
+        writer.write("tree: " + rootHash + "\n");
+        if (parent != null) {
+            writer.write("parent: " + parent + "\n");
+        }
+        writer.write("author: " + author + "\ndate: " + LocalDateTime.now() + "\nmessage: " + message);
         writer.close();
-        // update head
         String commitHash = createBlob("git/temp");
-        Path path = Paths.get("git/temp");
-        Files.deleteIfExists(path);
-        FileWriter headWriter = new FileWriter("git/HEAD");
-        headWriter.write(commitHash);
-        headWriter.close();
+        Files.deleteIfExists(temp.toPath());
+
+        if (branch != null) {
+            Files.writeString(branchPath(branch), commitHash);
+        } else {
+            Files.writeString(Path.of("git", "HEAD"), commitHash);
+        }
         return commitHash;
+    }
+
+    private static String readHead() throws IOException {
+        Path headPath = Path.of("git", "HEAD");
+        if (!Files.exists(headPath)) {
+            return "";
+        }
+        return Files.readString(headPath).trim();
+    }
+
+    private static String branchFromHead(String head) {
+        String prefix = "ref: refs/heads/";
+        if (head.startsWith(prefix)) {
+            return head.substring(prefix.length());
+        }
+        return null;
+    }
+
+    private static Path branchPath(String name) {
+        return Path.of("git", "refs", "heads", name);
+    }
+
+    private static String readBranch(String name) throws IOException {
+        Path p = branchPath(name);
+        if (!Files.exists(p)) {
+            return null;
+        }
+        String hash = Files.readString(p).trim();
+        return hash.isEmpty() ? null : hash;
+    }
+
+    public static String currentCommit() throws IOException {
+        String head = readHead();
+        String branch = branchFromHead(head);
+        if (branch != null) {
+            return readBranch(branch);
+        }
+        return head.isEmpty() ? null : head;
+    }
+
+    public static void createBranch(String name) throws IOException {
+        if (name == null || name.isBlank() || name.contains("/") || name.contains(" ")) {
+            throw new IOException("not real branch name " + name);
+        }
+        if (Files.exists(branchPath(name))) {
+            throw new IOException("Branch already exists: " + name);
+        }
+        String current = currentCommit();
+        if (current == null) {
+            throw new IOException("fail" + name + ": there are no commits yet");
+        }
+        Files.createDirectories(branchPath(name).getParent());
+        Files.writeString(branchPath(name), current);
+    }
+
+    public static void checkout(String target) throws IOException {
+        String branchCommit = readBranch(target);
+        if (branchCommit != null) {
+            checkoutCommit(branchCommit);
+            Files.writeString(Path.of("git", "HEAD"), "ref: refs/heads/" + target);
+            return;
+        }
+        if (isCommit(target)) {
+            checkoutCommit(target);
+            Files.writeString(Path.of("git", "HEAD"), target);
+            return;
+        }
+        throw new IOException("No such branch or commit: " + target);
+    }
+
+    private static boolean isCommit(String hash) throws IOException {
+        if (!hash.matches("[0-9a-f]{40}")) {
+            return false;
+        }
+        Path obj = Path.of("git", "objects", hash);
+        return Files.isRegularFile(obj) && Files.readString(obj).startsWith("tree: ");
+    }
+
+    private static void checkoutCommit(String commitHash) throws IOException {
+        String treeHash = null;
+        for (String line : Files.readAllLines(Path.of("git", "objects", commitHash))) {
+            if (line.startsWith("tree: ")) {
+                treeHash = line.substring("tree: ".length()).trim();
+            }
+        }
+        if (treeHash == null) {
+            throw new IOException("Not a commit: " + commitHash);
+        }
+
+        ArrayList<String> entries = new ArrayList<>();
+        readTree(treeHash, "", entries);
+
+        Path index = Path.of("git", "index");
+        ArrayList<String> targetPaths = new ArrayList<>();
+        for (String e : entries) {
+            targetPaths.add(e.substring(e.indexOf(' ') + 1));
+        }
+        if (Files.exists(index)) {
+            for (String line : Files.readAllLines(index)) {
+                int space = line.indexOf(' ');
+                if (space < 0) {
+                    continue;
+                }
+                String path = line.substring(space + 1);
+                if (!targetPaths.contains(path)) {
+                    Files.deleteIfExists(Path.of(path));
+                }
+            }
+        }
+
+        for (String e : entries) {
+            int space = e.indexOf(' ');
+            String blobHash = e.substring(0, space);
+            Path out = Path.of(e.substring(space + 1));
+            if (out.getParent() != null) {
+                Files.createDirectories(out.getParent());
+            }
+            Files.copy(Path.of("git", "objects", blobHash), out,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+
+        Files.writeString(index, String.join("\n", entries));
+    }
+
+    private static void readTree(String treeHash, String prefix, ArrayList<String> out) throws IOException {
+        for (String line : Files.readAllLines(Path.of("git", "objects", treeHash))) {
+            if (line.isBlank()) {
+                continue;
+            }
+            String[] parts = line.split(" ", 3);
+            String path = prefix.isEmpty() ? parts[2] : prefix + "/" + parts[2];
+            if (parts[0].equals("tree")) {
+                readTree(parts[1], path, out);
+            } else {
+                out.add(parts[1] + " " + path);
+            }
+        }
     }
 }
